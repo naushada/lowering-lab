@@ -110,6 +110,12 @@ Constants are built 16 bits at a time:
 - `movk` — **move and keep** the other bits
 - `mvn` — move-not: `~x`, also used to make some negative constants in one go
 
+**The `lsl #16` here does not shift `x0`.** It applies to the 16-bit immediate and
+selects which slot to write; the bits already in `x0` do not move. The assembler
+accepts only `lsl #0`, `#16`, `#32` and `#48` — `#8` is rejected — because the
+field is 2 bits wide and names a slot rather than a distance. Full explanation and
+the live trace in [docs/register-views.md](../docs/register-views.md).
+
 This is why `return -1` is one instruction (`mov x0, #-1`) while
 `return 0x12345678` is two.
 

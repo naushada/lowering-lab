@@ -5,6 +5,11 @@
 #include <stdio.h>
 #include <stdint.h>
 
+static void slots(const char *insn, uint64_t v, const char *what) {
+    printf("%-30s %04llx   %04llx   %04llx   %04llx   %s\n", insn,
+           (v >> 48) & 0xFFFF, (v >> 32) & 0xFFFF, (v >> 16) & 0xFFFF, v & 0xFFFF, what);
+}
+
 int main(void) {
     const uint64_t v = 0x1122334455667788ULL;
     uint64_t out;
@@ -25,12 +30,25 @@ int main(void) {
     __asm__("lsr %x0, %x1, #32" : "=r"(out) : "r"(v));
     printf("lsr x0, x1, #32     0x%016llx   the only way to the high half\n\n", out);
 
-    /* --- 16-bit granularity, place 1: building constants ---------------- */
-    __asm__("movz %x0, #0x7788\n\t"
-            "movk %x0, #0x5566, lsl #16\n\t"
-            "movk %x0, #0x3344, lsl #32\n\t"
-            "movk %x0, #0x1122, lsl #48" : "=r"(out));
-    printf("movz + 3x movk      0x%016llx   four 16-bit slots\n", out);
+    /* --- 16-bit granularity, place 1: building constants ----------------
+       Watch slot 0 (7788) stay exactly where it is. The `lsl #16` applies to the
+       IMMEDIATE and picks which 16-bit slot to write; it does not shift x0.
+       The assembler accepts only lsl #0/#16/#32/#48 -- a 2-bit slot selector. */
+    printf("%-30s %-6s %-6s %-6s %s\n", "", "63..48", "47..32", "31..16", "15..0");
+    __asm__("movz %0, #0x7788"          : "=r"(out));
+    slots("movz x0, #0x7788", out, "slot 0 written, rest ZEROED");
+    __asm__("movk %0, #0x5566, lsl #16" : "+r"(out));
+    slots("movk x0, #0x5566, lsl #16", out, "slot 1 written, slot 0 untouched");
+    __asm__("movk %0, #0x3344, lsl #32" : "+r"(out));
+    slots("movk x0, #0x3344, lsl #32", out, "slot 2 written, slots 0-1 untouched");
+    __asm__("movk %0, #0x1122, lsl #48" : "+r"(out));
+    slots("movk x0, #0x1122, lsl #48", out, "slot 3 written, rest untouched");
+
+    /* The contrast: a REAL left shift does move what is already in the register. */
+    uint64_t sh = 0x7788;
+    __asm__("lsl %0, %1, #16" : "=r"(sh) : "r"(sh));
+    slots("lsl x0, x0, #16", sh, "<- 7788 MOVED. that is a shift.");
+    putchar('\n');
 
     /* --- 16-bit granularity, place 2: memory accesses ------------------- */
     uint64_t mem = v;

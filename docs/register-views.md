@@ -64,12 +64,51 @@ block-beta
   m3["movk lsl #48"] m2["movk lsl #32"] m1["movk lsl #16"] m0["movz"]
 ```
 
-```asm
-movz x0, #0x7788               ; 0x0000000000007788   set low slot, zero the rest
-movk x0, #0x5566, lsl #16      ; 0x0000000055667788   keep the rest, patch slot 1
-movk x0, #0x3344, lsl #32      ; 0x0000334455667788
-movk x0, #0x1122, lsl #48      ; 0x1122334455667788   four instructions, one number
 ```
+                               63..48 47..32 31..16 15..0
+movz x0, #0x7788               0000   0000   0000   7788    slot 0 written, rest ZEROED
+movk x0, #0x5566, lsl #16      0000   0000   5566   7788    slot 1 written, slot 0 untouched
+movk x0, #0x3344, lsl #32      0000   3344   5566   7788    slot 2 written, slots 0-1 untouched
+movk x0, #0x1122, lsl #48      1122   3344   5566   7788    slot 3 written, rest untouched
+```
+
+### Careful: that `lsl` does not shift `x0`
+
+This is the most misread line in the whole reference, so it is worth being blunt
+about it. **The `lsl #16` applies to the 16-bit immediate, not to the destination
+register.** Nothing already in `x0` moves — notice `7788` sitting in the bottom
+slot, unchanged, through all four instructions.
+
+If `lsl #16` really shifted `x0`, the second instruction would have pushed `7788`
+up to bits 31..16 and produced `0x77885566`. It produces `0x55667788` instead:
+the *new* value lands high and the old value stays low. That is what makes it look
+as though the shift ran the other way. Compare with a genuine left shift:
+
+```
+movk x0, #0x5566, lsl #16      0000 0000 5566 7788    x0's old content stays put
+lsl  x0, x0, #16               0000 0000 7788 0000    x0's content MOVES up
+```
+
+The accurate mental model is a masked field write:
+
+```c
+x0 = (x0 & ~(0xFFFFULL << N)) | ((uint64_t)imm << N);   /* the << applies to imm */
+```
+
+And the decisive evidence that it is not a shift operation at all — the assembler
+only accepts four values, because the field is **2 bits wide** and selects one of
+four slots:
+
+```
+movk x0, #0x1122, lsl #0    ACCEPTED        movk x0, #0x1122, lsl #8    REJECTED
+movk x0, #0x1122, lsl #16   ACCEPTED        movk x0, #0x1122, lsl #40   REJECTED
+movk x0, #0x1122, lsl #32   ACCEPTED
+movk x0, #0x1122, lsl #48   ACCEPTED
+```
+
+A real shift accepts 0–63. `movk`'s `lsl` is a **slot selector wearing shift
+syntax** — ARM reuses the notation because for `movz` the two readings happen to
+coincide. Run `make run` in `00-instruction-set` for the live trace.
 
 ### (b) Memory: the *load* carries the width and the signedness
 
