@@ -73,3 +73,6 @@ addressing mode, constant-encoding limits, and a suffix decoder — see
 ```sh
 cd 00-instruction-set && make mnemonics
 ```
+
+For how `x0`, `w0` and the vector lane views overlap in one register, see
+[register-views.md](register-views.md).

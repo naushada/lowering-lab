@@ -93,6 +93,9 @@ debugging today.
 - [chapter 00](00-instruction-set/note.md) — the full reference: every instruction
   with a worked example, the flags and condition codes, all the addressing modes,
   and a suffix decoder for guessing an instruction you have never seen.
+- [docs/register-views.md](docs/register-views.md) — diagrams of how a 64-bit
+  register divides into its 32-, 16- and 8-bit views, on both arm64 and x86-64,
+  and why the upper half has no name on either.
 - These labs were written on **arm64 macOS** with Homebrew clang. They work with
   Apple clang and on Linux too; instruction names in the notes are AArch64, and
   the x86-64 equivalents are in the doc above.

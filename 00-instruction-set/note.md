@@ -35,6 +35,11 @@ an `int` costs nothing.
 | `sp` | stack pointer; must be 16-byte aligned at every call |
 | `xzr` / `wzr` | the zero register: reads as 0, writes are discarded |
 
+For diagrams of how `x0` and `w0` overlap — and why there is no name for bits
+63..32 on either arm64 or x86-64 — see
+[docs/register-views.md](../docs/register-views.md), and run `make run` in this
+chapter to watch a `w` write zero the upper half.
+
 `xzr` is how the machine avoids needing extra instructions: `neg x0, x1` is
 really `sub x0, xzr, x1`, `cmp` is `subs` into `xzr`, and `mov x0, x1` is
 `orr x0, xzr, x1`.
