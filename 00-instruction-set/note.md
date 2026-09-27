@@ -216,10 +216,58 @@ trick possible.
 | `tst w0, w1` | `ands wzr, w0, w1` — test bits, flags only | `branch_if_mask` |
 | `lsl` / `lsr` | shift left / right **logical** (fills with 0) | `shift_left` |
 | `asr` | shift right **arithmetic** (fills with the sign bit) | `shift_right_arith` |
-| `ror` | rotate right | `rotate` |
+| `ror` | rotate right | `rotate_right` |
+
+`lsl` and `lsr` mean exactly what `<<` and `>>` mean in C — left is toward the
+most significant bit, and the vacated bits are filled with zeros:
+
+```
+x = 0x0000000F     0000_0000_0000_0000_0000_0000_0000_1111
+lsl w0, w1, #4     0000_0000_0000_0000_0000_0000_1111_0000   = x << 4  = x * 16
+lsr w0, w1, #2     0000_0000_0000_0000_0000_0000_0000_0011   = x >> 2  = x / 4
+```
 
 `lsr` versus `asr` is signedness again: `unsigned >> n` fills with zeros,
-`int >> n` replicates the sign bit so that `-8 >> 1 == -4`.
+`int >> n` replicates the sign bit so that `-8 >> 1 == -4`:
+
+```
+neg = -16          1111_1111_1111_1111_1111_1111_1111_0000
+lsr w0, w1, #2     0011_1111_1111_1111_1111_1111_1111_1100   = 0x3ffffffc (nonsense)
+asr w0, w1, #2     1111_1111_1111_1111_1111_1111_1111_1100   = -4        (correct)
+```
+
+### Two reasons a shift can *look* like it went the wrong way
+
+**1. There is no `rol` instruction.** Rotate left by `n` is identical to rotate
+right by `32 - n`, so AArch64 provides only `ror` and the compiler converts. Write
+a left rotate and you get a right-rotate instruction with a different number:
+
+```asm
+; unsigned rotate_left_8(unsigned a) { return (a << 8) | (a >> 24); }
+    ror w0, w0, #24            ; a LEFT rotate by 8, as a RIGHT rotate by 24
+
+; unsigned rotate_left(unsigned a, int n) { return (a << n) | (a >> (32-n)); }
+    neg w8, w1                 ; negate the amount (mod 32)...
+    ror w0, w0, w8             ; ...and rotate right by it
+```
+
+This is the only case in the instruction set where the direction in your source
+and the direction in the assembly genuinely disagree. `make run`-able proof is in
+`integer.c`'s `rotate_left`, `rotate_left_8` and `rotate_right`.
+
+**2. `lsl` as an operand modifier is not shifting the destination.** In
+`ldr w0, [x0, x1, lsl #2]` or `movk x0, #0x1122, lsl #48`, the `lsl` scales *the
+other operand before it is used* — it multiplies an index by 4, or moves an
+immediate up into the high bits. Nothing is shifted in place, and no register is
+modified by the shift itself. Read it as "×2ⁿ", not as an instruction.
+
+A third source of confusion is purely a drawing convention: in the diagrams here
+and in [docs/register-views.md](../docs/register-views.md), **bit 63 is on the
+left and bit 0 on the right**, so a left shift moves data leftward in the
+picture. Network- and RFC-style packet diagrams number bit 0 first and so put it
+on the *left*, and in that layout a left shift appears to move data to the right.
+The instruction never changed — only which end of the page bit 0 sits on. "Left"
+always means *toward the most significant bit*.
 
 **Bitfields in one instruction each:**
 

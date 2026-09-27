@@ -77,7 +77,15 @@ N int      bit_test(int a)        { return (a & 8) != 0; } /* tst (or ubfx/and) 
 N unsigned shift_left(unsigned a, int n)  { return a << n; }  /* lsl */
 N unsigned shift_right_logical(unsigned a, int n) { return a >> n; } /* lsr */
 N int      shift_right_arith(int a, int n){ return a >> n; }  /* asr: keeps the sign */
-N unsigned rotate(unsigned a, int n) { return (a >> n) | (a << (32 - n)); } /* ror */
+N unsigned rotate_right(unsigned a, int n) { return (a >> n) | (a << (32 - n)); } /* ror */
+
+/* THERE IS NO `rol` INSTRUCTION. A rotate left by n is a rotate right by 32-n,
+   so writing a LEFT rotate produces a RIGHT-rotate instruction with a different
+   immediate. This is the one place where the direction in the source and the
+   direction in the assembly genuinely disagree -- see the note. */
+N unsigned rotate_left(unsigned a, int n) { return (a << n) | (a >> (32 - n)); }
+                                        /* neg + ror: negate the amount, rotate right */
+N unsigned rotate_left_8(unsigned a) { return (a << 8) | (a >> 24); }  /* ror #24 (!) */
 
 /* Bitfield extraction and insertion are single instructions, which is what
    makes chapter 04's bitfields cheap to READ. */
